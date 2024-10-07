@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional,Dict
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, Text
 from sqlalchemy.orm import sessionmaker, declarative_base
@@ -18,6 +18,23 @@ class User(Base):
     age = Column(Integer, nullable=False)
     location = Column(String, nullable=False)
 
+    def to_networkx_node(self) -> Dict:
+        """
+        Converts the User instance into a dictionary format that can be
+        added as a node to a NetworkX graph.
+        """
+        return {
+            'node': self.id,
+            'attributes': {
+                'name': self.full_name,
+                'age': self.age,
+                'graduation_year': self.graduation_year,
+                'major': self.major,
+                'high_school': self.school,
+            }
+        }
+
+
 DATABASE_URL = "sqlite:///./users.db"
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -28,12 +45,19 @@ class UserGraph:
     def __init__(self):
         self.graphs = {}  # Dictionary to store user's individual graphs
 
-    def create_or_append_graph(self, user_id: int, connected_user_id: int):
+    def create_or_append_graph(self, user_id: int, connected_user_id: int,user_one:UserNode,user_two:UserNode,edge_weight):
         if user_id not in self.graphs:
             self.graphs[user_id] = nx.Graph()  # Create new graph for the user
 
         # Add the connected user to the graph
-        self.graphs[user_id].add_edge(user_id, connected_user_id)
+            self.graphs[user_id].add_edge(user_id, connected_user_id,weight=edge_weight)
+            self.graphs[user_id].nodes[user_id]['attributes']=user_one.to_networkx_node()['attributes']
+            self.graphs[user_id].nodes[connected_user_id]['attributes'] = user_two.to_networkx_node()['attributes']
+        else:
+            self.graphs[user_id].add_edge(user_id, connected_user_id,weight=edge_weight)
+            self.graphs[user_id].nodes[connected_user_id]['attributes'] = user_two.to_networkx_node()['attributes']
+
+
 
     def get_connected_component(self, user_id: int):
         if user_id not in self.graphs:
@@ -49,7 +73,6 @@ class UserGraphApp:
     def __init__(self):
         self.db = SessionLocal()
         self.user_graph = UserGraph()  # For storing user-specific graphs
-        self.scorecard = ScoreCard()  # For calculating similarity
 
     # Function to create a new user or log in an existing user
     def create_or_login_user(self, user_data: UserNode):
@@ -97,13 +120,13 @@ class UserGraphApp:
                 similarity_score = ScoreCard(user_data,other_user_node).get_score()
 
                 # If similarity score is greater than 0.7, connect users
-                if similarity_score > 0.7:
+                if similarity_score >= 0.7:
+
                     print(f"Connecting {user_data.full_name} with {other_user.full_name}")
 
                     # Append this connection to both users' cached graphs
-                    self.user_graph.create_or_append_graph(user_data.id, other_user.id)
-                    self.user_graph.create_or_append_graph(other_user.id, user_data.id)
-
+                    self.user_graph.create_or_append_graph(user_id=user_data.id, connected_user_id=other_user.id,user_one=user_data,user_two=other_user,edge_weight=similarity_score)
+                    self.user_graph.create_or_append_graph(user_id=other_user.id, connected_user_id=user_data.id,user_one=other_user,user_two=user_data,edge_weight=similarity_score)
     # Function to get the graph for a specific user
     def get_user_graph(self, user_id: int):
         user_graph = self.user_graph.get_graph(user_id)

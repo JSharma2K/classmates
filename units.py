@@ -11,7 +11,7 @@ class UserNode(BaseModel):
     location: str
 
     def __repr__(self):
-        return (f"Hi my name is: {self.name!r}, "
+        return (f"Hi my name is: {self.full_name!r}, "
                 f"I am age={self.age!r} years old, "
                 f"I graduated from {self.school} in the year: {self.graduation_year}")
 
@@ -22,12 +22,10 @@ class UserNode(BaseModel):
         return {
             'node': self.id,
             'attributes': {
-                'name': self.name,
-                'email': self.email,
+                'name': self.full_name,
                 'age': self.age,
                 'graduation_year': self.graduation_year,
                 'major': self.major,
-                'high_school': self.high_school,
-                'interests': self.interests,
+                'high_school': self.school,
             }
             }
